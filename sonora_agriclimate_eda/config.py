@@ -21,6 +21,8 @@ MODELS_DIR = PROJ_ROOT / "models"
 REPORTS_DIR = PROJ_ROOT / "reports"
 FIGURES_DIR = REPORTS_DIR / "figures"
 
+REFERENCES_DIR = PROJ_ROOT / "references"
+
 # --- URLs de Fuentes Externas ---
 SONORA_AGRICULTURE_URL = (
     "https://datos.sonora.gob.mx/dataset/3e17a7e8-c8d4-49c4-a426-4dec099cd0cd/"
@@ -47,6 +49,61 @@ ID_VARS_CANDIDATES = [
     "MUNICIPIO",
     "Abrevia",
 ]
+
+# Parámetros agroclimáticos de referencia para Agave angustifolia (Bacanora)
+AGAVE_AGROCLIMATIC_PARAMS_PROFILE = {
+    "nombre_comun": "Maguey Espadín / Bacanora",
+    "nombre_cientifico": "Agave angustifolia Haw.",
+    "precipitacion_min_anual_mm": 250,
+    "precipitacion_optima_mm": 600,
+    "temperatura_critica_min_c": -3,
+    "ciclo_vida_anos": (6, 8),
+    "suelos_aptos": ["franco-arenoso", "pedregoso", "buen drenaje"],
+    "grados_sequia_criticos": ["D3", "D4"],
+    "severidad_map": {
+        "Normal": 0,
+        "D0": 1,
+        "D1": 2,
+        "D2": 3,
+        "D3": 4,
+        "D4": 5,
+    },
+}
+
+AGAVE_AGROCLIMATIC_PARAMS = {
+    # 1. Requerimientos de precipitación y balance hídrico (mm)
+    "precipitacion": {
+        "optima_min_anual_mm": 400,
+        "optima_max_anual_mm": 600,
+        "minimo_supervivencia_mm": 250,  # Límite biológico sin riego de auxilio
+    },
+    # 2. Umbrales Térmicos (°C)
+    "temperatura": {
+        "estres_frio_critico_c": -3,  # Riesgo de daño tisular / heladas
+        "estres_calor_extremo_c": (
+            40
+        ),  # Cierre estomático prolongado por calor/sequía
+    },
+    # 3. Propiedades del Suelo y Drenaje
+    "suelo": {
+        "texturas_ideales": ["franco-arenosa", "arenosa", "pedregosa"],
+        "sensibilidad_encharcamiento": (
+            "alta"
+        ),  # Propensión a pudrición de raíz (ej. Fusarium)
+    },
+    # 4. Monitor de Sequía CONAGUA (Mapeo de severidad numérica)
+    "severidad_sequia_map": {
+        "Normal": 0,
+        "Sin Sequía": 0,
+        "D0": 1,  # Anormalmente seco
+        "D1": 2,  # Sequía moderada
+        "D2": 3,  # Sequía severa
+        "D3": 4,  # Sequía extrema (estrés hídrico crítico)
+        "D4": 5,  # Sequía excepcional (riesgo alto de pérdida)
+    },
+    # Categorías consideradas de alerta crítica para el cultivo
+    "niveles_alerta_critica": ["D3", "D4"],
+}
 
 
 
