@@ -43,7 +43,6 @@ rich==15.0.0
 seaborn==0.13.2
 shellingham==1.5.4
 six==1.17.0
--e git+https://github.com/mdc-feature-engineering/sonora-agriclimate-eda.git@aa4d5ec33b82ac94a1d52b70b1a164276a770a96#egg=sonora_agriclimate_eda
 stack-data==0.6.3
 tornado==6.5.8
 tqdm==4.70.1
