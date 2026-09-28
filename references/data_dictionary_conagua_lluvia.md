@@ -1,5 +1,4 @@
-# Diccionario de Datos: Agricultura de Sonora
-
+# Diccionario de Datos: Precipitación Media Mensual (CONAGUA / SMN)
 ## Descripción general
 
 Este diccionario describe las variables disponibles en los archivos de lluvias nacionales(`AÑO-MES-01.csv`). El dataset contiene información sobre la precipitación mensual (mm) registrada en distintas estaciones regionales de todo México. 
