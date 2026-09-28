@@ -191,6 +191,69 @@ def download_rain_data(start_year: int = 2019, end_year: int = 2024):
     logger.success("Descargas de 2019 a 2023 completadas.")
 
 
+
+@app.command()
+def download_temperature_data(start_year: int = 2019, end_year: int = 2024):
+  """Descarga los archivos mensuales de temperatura media (TMed) directamente en data/raw/."""
+  urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+  # 1. Asegurar que la carpeta data/raw exista
+  RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+  # 2. Cabeceras con Referer para evitar rechazos o Status 500 del servidor
+  headers = {
+      "User-Agent": (
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      ),
+      "Referer": (
+          "https://smn.conagua.gob.mx/es/climatologia/temperaturas-y-lluvias/resumenes-mensuales-de-temperaturas-y-lluvias"
+      ),
+  }
+
+  # 3. Recorrido por años y meses
+  for current_year in range(start_year, end_year):
+    year_str = str(current_year)
+    logger.info(f"--- Descarga de temperatura del año: {year_str} ---")
+
+    # Se crea directamente en data/raw/temperatura_XXXX
+    year_folder = RAW_DATA_DIR / f"temperatura_{year_str}"
+    year_folder.mkdir(parents=True, exist_ok=True)
+
+    for month in range(1, 13):
+      mes_str = str(month).zfill(2)
+      file_name = f"{year_str}{mes_str}010000TMed.csv"
+      file_url = f"{CONAGUA_BASE_URL.rstrip('/')}/{file_name}"
+      local_path = year_folder / file_name
+
+      # Si el archivo ya existe localmente, se omite
+      if local_path.exists() and local_path.stat().st_size > 0:
+        logger.info(f"Año {year_str} | Mes {mes_str}: Ya existe localmente")
+        continue
+
+      try:
+        res = requests.get(file_url, headers=headers, verify=False, timeout=20)
+
+        if res.status_code == 200:
+          with open(local_path, "wb") as f:
+            f.write(res.content)
+          logger.success(f"Año {year_str} | Mes {mes_str}: Descargado con éxito")
+        else:
+          logger.warning(
+              f"Año {year_str} | Mes {mes_str}: No disponible (Status"
+              f" {res.status_code})"
+          )
+
+        # Pausa de cortesía para no saturar al SMN
+        time.sleep(0.5)
+
+      except Exception as e:
+        logger.error(f"Error al descargar {file_name}: {e}")
+
+  logger.success("Descargas de temperatura media completadas.")
+
+
+
+
 @app.command()
 def data_ingestion_pipeline(start_year: int = 2019, end_year: int = 2024):
     """Ejecuta la descarga de agricultura y el procesamiento de sequía en un solo paso."""
@@ -208,6 +271,11 @@ def data_ingestion_pipeline(start_year: int = 2019, end_year: int = 2024):
     logger.info("Paso 3/3: Descargando datos de lluvia...")
     download_rain_data(start_year, end_year)
 
+    logger.success("¡Pipeline completo ejecutado con éxito!")
+
+    # 4 Ejecutar descarga de datos de temperatura
+    logger.info("Paso 4/4: Descargando datos de temperatura media...")
+    download_temperature_data(start_year, end_year)
     logger.success("¡Pipeline completo ejecutado con éxito!")
 
 
