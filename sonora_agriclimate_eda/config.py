@@ -37,6 +37,12 @@ CONAGUA_DROUGHT_URL = (
     "Monitor de Sequia en Mexico/MunicipiosSequia.xlsx"
 )
 
+HIDRICO_SONORA_URL = (
+    "https://datos.sonora.gob.mx/dataset/ee8f639f-5e89-46ae-93b9-934b05fc6233/"
+    "resource/213a4f46-7cd1-412f-aeec-4fab8193f51f/download/"
+    "hidrico_sonora_2020-actualidad2024.xlsx"
+)
+
 REPDA_URL_QUERY = "https://sigagis.conagua.gob.mx/ArcGIS/rest/services/REPDA/MapServer/1/query"
 
 # --- Metadatos y Columnas ---
