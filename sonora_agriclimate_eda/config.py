@@ -37,6 +37,8 @@ CONAGUA_DROUGHT_URL = (
     "Monitor de Sequia en Mexico/MunicipiosSequia.xlsx"
 )
 
+REPDA_URL_QUERY = "https://sigagis.conagua.gob.mx/ArcGIS/rest/services/REPDA/MapServer/1/query"
+
 # --- Metadatos y Columnas ---
 ID_VARS_CANDIDATES = [
     "Cve_Entidad",
