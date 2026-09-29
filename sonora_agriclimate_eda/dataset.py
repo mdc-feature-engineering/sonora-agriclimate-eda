@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 import pandas as pd
 import requests
@@ -195,30 +196,33 @@ def download_rain_data(start_year: int = 2019, end_year: int = 2024):
     logger.success("Descargas de 2019 a 2023 completadas.")
 
 
+
 @app.command()
 def download_temperature_data(start_year: int = 2019, end_year: int = 2024):
-    """Descarga los archivos mensuales de temperatura media (TMed) directamente en data/raw/."""
-    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+  """Descarga los archivos mensuales de temperatura media (TMed) directamente en data/raw/."""
+  urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-    # 1. Asegurar que la carpeta data/raw exista
-    RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+  # 1. Asegurar que la carpeta data/raw exista
+  RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    # 2. Cabeceras con Referer para evitar rechazos o Status 500 del servidor
-    headers = {
-        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
-        "Referer": (
-            "https://smn.conagua.gob.mx/es/climatologia/temperaturas-y-lluvias/resumenes-mensuales-de-temperaturas-y-lluvias"
-        ),
-    }
+  # 2. Cabeceras con Referer para evitar rechazos o Status 500 del servidor
+  headers = {
+      "User-Agent": (
+          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+      ),
+      "Referer": (
+          "https://smn.conagua.gob.mx/es/climatologia/temperaturas-y-lluvias/resumenes-mensuales-de-temperaturas-y-lluvias"
+      ),
+  }
 
-    # 3. Recorrido por años y meses
-    for current_year in range(start_year, end_year):
-        year_str = str(current_year)
-        logger.info(f"--- Descarga de temperatura del año: {year_str} ---")
+  # 3. Recorrido por años y meses
+  for current_year in range(start_year, end_year):
+    year_str = str(current_year)
+    logger.info(f"--- Descarga de temperatura del año: {year_str} ---")
 
-        # Se crea directamente en data/raw/temperatura_XXXX
-        year_folder = RAW_DATA_DIR / f"temperatura_{year_str}"
-        year_folder.mkdir(parents=True, exist_ok=True)
+    # Se crea directamente en data/raw/temperatura_XXXX
+    year_folder = RAW_DATA_DIR / f"temperatura_{year_str}"
+    year_folder.mkdir(parents=True, exist_ok=True)
 
         for month in range(1, 13):
             mes_str = str(month).zfill(2)
@@ -226,215 +230,33 @@ def download_temperature_data(start_year: int = 2019, end_year: int = 2024):
             file_url = f"{CONAGUA_BASE_URL.rstrip('/')}/{file_name}"
             local_path = year_folder / file_name
 
-            # Si el archivo ya existe localmente, se omite
-            if local_path.exists() and local_path.stat().st_size > 0:
-                logger.info(f"Año {year_str} | Mes {mes_str}: Ya existe localmente")
-                continue
+      # Si el archivo ya existe localmente, se omite
+      if local_path.exists() and local_path.stat().st_size > 0:
+        logger.info(f"Año {year_str} | Mes {mes_str}: Ya existe localmente")
+        continue
 
-            try:
-                res = requests.get(file_url, headers=headers, verify=False, timeout=20)
+      try:
+        res = requests.get(file_url, headers=headers, verify=False, timeout=20)
 
-                if res.status_code == 200:
-                    with open(local_path, "wb") as f:
-                        f.write(res.content)
-                    logger.success(
-                        f"Año {year_str} | Mes {mes_str}: Descargado con éxito"
-                    )
-                else:
-                    logger.warning(
-                        f"Año {year_str} | Mes {mes_str}: No disponible (Status"
-                        f" {res.status_code})"
-                    )
-
-                # Pausa de cortesía para no saturar al SMN
-                time.sleep(0.5)
-
-            except Exception as e:
-                logger.error(f"Error al descargar {file_name}: {e}")
-
-    logger.success("Descargas de temperatura media completadas.")
-
-
-def download_repda_data(batch_size=2000, max_workers=5):
-    """Descarga de forma masiva y en paralelo las concesiones del REPDA para Sonora (ESTADO = 26)."""
-    complete_csv_output = RAW_DATA_DIR / "repda_sonora_completo.csv"
-    agricultural_csv_output = INTERIM_DATA_DIR / "repda_sonora_agricola.csv"
-    output_parquet = RAW_DATA_DIR / "repda_sonora_completo.parquet"
-
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Referer": "https://sigagis.conagua.gob.mx/",
-    }
-    where_clause = "ESTADO = 26"
-
-    # 1. Check the total number of exact records
-    logger.info("Consultando el número total de registros en Sonora...")
-    count_params = {"where": where_clause, "returnCountOnly": "true", "f": "json"}
-    try:
-        r = requests.get(
-            REPDA_URL_QUERY,
-            params=count_params,
-            headers=headers,
-            verify=False,
-            timeout=15,
-        )
-        total_records = r.json().get("count", 0)
-    except Exception as e:
-        logger.warning(f"Error al conectar con la API para obtener el conteo: {e}")
-        return []
-
-    logger.info(f"Total de registros a descargar: {total_records}")
-    if total_records == 0:
-        return []
-
-    # 2. Internal function to download an individual batch with retries
-    def fetch_chunk(offset):
-        params = {
-            "where": where_clause,
-            "outFields": "*",
-            "f": "json",
-            "returnGeometry": "false",
-            "resultRecordCount": batch_size,
-            "resultOffset": offset,
-            "orderByFields": "FID",
-        }
-        for _ in range(3):
-            try:
-                resp = requests.get(
-                    REPDA_URL_QUERY,
-                    params=params,
-                    headers=headers,
-                    verify=False,
-                    timeout=20,
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    return [feat["attributes"] for feat in data.get("features", [])]
-            except Exception:
-                time.sleep(1)
-        return []
-
-    # 3. Perform bulk download using threads
-    offsets = list(range(0, total_records, batch_size))
-    all_features = []
-
-    logger.info("Descargando todo Sonora en paralelo...")
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(fetch_chunk, off): off for off in offsets}
-        for future in as_completed(futures):
-            res = future.result()
-            if res:
-                all_features.extend(res)
-            logger.info(
-                f"Registros descargados: {len(all_features)} / {total_records}",
-                end="\r",
-            )
-
-    logger.success(
-        "\n¡Descarga finalizada con éxito! Total de registros obtenidos:"
-        f" {len(all_features)}"
-    )
-
-    if all_features:
-        df_sonora = pd.DataFrame(all_features)
-
-        if "FID" in df_sonora.columns:
-            df_sonora = df_sonora.drop_duplicates(subset=["FID"])
-
-        # 4. Save full data backup
-        df_sonora.to_csv(complete_csv_output, index=False, encoding="utf-8-sig")
-        df_sonora.to_parquet(output_parquet, index=False)
-        logger.info(f"[1/2] Archivo completo guardado en: {complete_csv_output.name}")
-
-        # 5. Detect water usage column and normalize text
-        col_uso = None
-        for c in ["USO_SUB", "USO", "USO_EXTRACCION"]:
-            if c in df_sonora.columns:
-                col_uso = c
-                break
-
-        if col_uso:
-            df_sonora["USO_LIMPIO"] = (
-                df_sonora[col_uso]
-                .astype(str)
-                .str.upper()
-                .str.normalize("NFKD")
-                .str.encode("ascii", errors="ignore")
-                .str.decode("utf-8")
-                .str.strip()
-            )
-            df_agricola = df_sonora[
-                df_sonora["USO_LIMPIO"].str.contains("AGRICOLA", na=False)
-            ].copy()
+        if res.status_code == 200:
+          with open(local_path, "wb") as f:
+            f.write(res.content)
+          logger.success(f"Año {year_str} | Mes {mes_str}: Descargado con éxito")
         else:
-            df_agricola = df_sonora.copy()
+          logger.warning(
+              f"Año {year_str} | Mes {mes_str}: No disponible (Status"
+              f" {res.status_code})"
+          )
 
-        # 6. Save filtered file for agriculture
-        df_agricola.to_csv(agricultural_csv_output, index=False, encoding="utf-8-sig")
-        logger.info(
-            f"[2/2] Archivo agrícola guardado en: {agricultural_csv_output.name}"
-        )
-        logger.info(f"Total de títulos con uso agrícola: {len(df_agricola)}")
+        # Pausa de cortesía para no saturar al SMN
+        time.sleep(0.5)
 
-    else:
-        logger.warning("No se obtuvieron registros para procesar.")
+      except Exception as e:
+        logger.error(f"Error al descargar {file_name}: {e}")
 
-
-def download_data_aquifers():
-    """Descarga datos de mantos acuiferos en Sonora."""
-    output_csv = RAW_DATA_DIR / "acuiferos_sonora.csv"
-
-    url = "https://sigagis.conagua.gob.mx/gas1/sections/Edos/sonora/sonora.html"
-
-    # 1. Headers to simulate a web browser and avoid blocking/redirection
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML,"
-            " like Gecko) Chrome/120.0.0.0 Safari/537.36"
-        )
-    }
-
-    try:
-        logger.info("Descargando página de CONAGUA...")
-        response = requests.get(url, headers=headers)
-        response.raise_for_status()  # Verify that the request is successful (code 200)
-
-        # 2. Use io.StringIO to read the HTML content downloaded with requests
-        tables = pd.read_html(io.StringIO(response.text))
-
-        if tables:
-            # 3. Select the main aquifer table
-            df_aquifers = tables[0]
-
-            # 4. Save as CSV
-            df_aquifers.to_csv(output_csv, index=False, encoding="utf-8-sig")
-            logger.success(
-                "\nArchivo guardado exitosamente como 'acuiferos_sonora.csv'"
-            )
-        else:
-            logger.warning("No se encontraron tablas HTML en la página.")
-
-    except Exception as e:
-        logger.warning(f"Ocurrió un error al procesar la solicitud: {e}")
+  logger.success("Descargas de temperatura media completadas.")
 
 
-@app.command()
-def download_hidrico_data():
-    """Descarga el archivo de recursos hídricos (presas) de Sonora."""
-    RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
-
-    dest_file = RAW_DATA_DIR / "hidrico_sonora_2020-actualidad2024.xlsx"
-
-    try:
-        response = requests.get(HIDRICO_SONORA_URL, timeout=30)
-        response.raise_for_status()
-
-        with open(dest_file, "wb") as f:
-            f.write(response.content)
-
-        logger.success(f"Archivo descargado con éxito: {dest_file}")
-    except requests.exceptions.RequestException as e:
-        logger.warning(f"Failed to download hidrico data: {e}")
 
 
 @app.command()
