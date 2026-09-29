@@ -8,16 +8,14 @@ import typer
 import os
 import urllib3
 import time
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import io
-
-from config import (
+from bs4 import BeautifulSoup
+from sonora_agriclimate_eda.config import (
     RAW_DATA_DIR,
     INTERIM_DATA_DIR,
     SONORA_AGRICULTURE_URL,
     CONAGUA_BASE_URL,
     CONAGUA_DROUGHT_URL,
-    REPDA_URL_QUERY,
     HIDRICO_SONORA_URL,
 )
 
@@ -58,7 +56,6 @@ def download_agriculture_data(start_year: int = 2019, end_year: int = 2024):
 def download_drought_data(start_year: int = 2019, end_year: int = 2024):
     """Procesa el archivo crudo de sequía de CONAGUA y genera un archivo Tidy por cada año."""
     raw_path = RAW_DATA_DIR / "MunicipiosSequia.xlsx"
-
     output_dir = INTERIM_DATA_DIR / "sonora_sequia"
 
     # 1. Create the folder dynamically if it does not exist (with parents=True and exist_ok=True)
@@ -196,33 +193,30 @@ def download_rain_data(start_year: int = 2019, end_year: int = 2024):
     logger.success("Descargas de 2019 a 2023 completadas.")
 
 
-
 @app.command()
 def download_temperature_data(start_year: int = 2019, end_year: int = 2024):
-  """Descarga los archivos mensuales de temperatura media (TMed) directamente en data/raw/."""
-  urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+    """Descarga los archivos mensuales de temperatura media (TMed) directamente en data/raw/."""
+    urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-  # 1. Asegurar que la carpeta data/raw exista
-  RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    # 1. Asegurar que la carpeta data/raw exista
+    RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-  # 2. Cabeceras con Referer para evitar rechazos o Status 500 del servidor
-  headers = {
-      "User-Agent": (
-          "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-      ),
-      "Referer": (
-          "https://smn.conagua.gob.mx/es/climatologia/temperaturas-y-lluvias/resumenes-mensuales-de-temperaturas-y-lluvias"
-      ),
-  }
+    # 2. Cabeceras con Referer para evitar rechazos o Status 500 del servidor
+    headers = {
+        "User-Agent": ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"),
+        "Referer": (
+            "https://smn.conagua.gob.mx/es/climatologia/temperaturas-y-lluvias/resumenes-mensuales-de-temperaturas-y-lluvias"
+        ),
+    }
 
-  # 3. Recorrido por años y meses
-  for current_year in range(start_year, end_year):
-    year_str = str(current_year)
-    logger.info(f"--- Descarga de temperatura del año: {year_str} ---")
+    # 3. Recorrido por años y meses
+    for current_year in range(start_year, end_year):
+        year_str = str(current_year)
+        logger.info(f"--- Descarga de temperatura del año: {year_str} ---")
 
-    # Se crea directamente en data/raw/temperatura_XXXX
-    year_folder = RAW_DATA_DIR / f"temperatura_{year_str}"
-    year_folder.mkdir(parents=True, exist_ok=True)
+        # Se crea directamente en data/raw/temperatura_XXXX
+        year_folder = RAW_DATA_DIR / f"temperatura_{year_str}"
+        year_folder.mkdir(parents=True, exist_ok=True)
 
         for month in range(1, 13):
             mes_str = str(month).zfill(2)
@@ -230,33 +224,147 @@ def download_temperature_data(start_year: int = 2019, end_year: int = 2024):
             file_url = f"{CONAGUA_BASE_URL.rstrip('/')}/{file_name}"
             local_path = year_folder / file_name
 
-      # Si el archivo ya existe localmente, se omite
-      if local_path.exists() and local_path.stat().st_size > 0:
-        logger.info(f"Año {year_str} | Mes {mes_str}: Ya existe localmente")
-        continue
+            # Si el archivo ya existe localmente, se omite
+            if local_path.exists() and local_path.stat().st_size > 0:
+                logger.info(f"Año {year_str} | Mes {mes_str}: Ya existe localmente")
+                continue
 
-      try:
-        res = requests.get(file_url, headers=headers, verify=False, timeout=20)
+            try:
+                res = requests.get(file_url, headers=headers, verify=False, timeout=20)
 
-        if res.status_code == 200:
-          with open(local_path, "wb") as f:
-            f.write(res.content)
-          logger.success(f"Año {year_str} | Mes {mes_str}: Descargado con éxito")
-        else:
-          logger.warning(
-              f"Año {year_str} | Mes {mes_str}: No disponible (Status"
-              f" {res.status_code})"
-          )
+                if res.status_code == 200:
+                    with open(local_path, "wb") as f:
+                        f.write(res.content)
+                    logger.success(
+                        f"Año {year_str} | Mes {mes_str}: Descargado con éxito"
+                    )
+                else:
+                    logger.warning(
+                        f"Año {year_str} | Mes {mes_str}: No disponible (Status"
+                        f" {res.status_code})"
+                    )
 
-        # Pausa de cortesía para no saturar al SMN
-        time.sleep(0.5)
+                # Pausa de cortesía para no saturar al SMN
+                time.sleep(0.5)
 
-      except Exception as e:
-        logger.error(f"Error al descargar {file_name}: {e}")
+            except Exception as e:
+                logger.error(f"Error al descargar {file_name}: {e}")
 
-  logger.success("Descargas de temperatura media completadas.")
+    logger.success("Descargas de temperatura media completadas.")
 
 
+@app.command()
+def download_hidrico_data():
+    """Descarga el archivo de recursos hídricos (presas) de Sonora."""
+    RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    dest_file = RAW_DATA_DIR / "hidrico_sonora_2020-actualidad2024.xlsx"
+
+    try:
+        response = requests.get(HIDRICO_SONORA_URL, timeout=30)
+        response.raise_for_status()
+
+        with open(dest_file, "wb") as f:
+            f.write(response.content)
+
+        logger.success(f"Archivo descargado con éxito: {dest_file}")
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Failed to download hidrico data: {e}")
+
+
+def download_siap_sonora(start_year: int, end_year: int):
+    """
+    Download SIAP data (Agricultural Year-End Report) for a range of years, filtering for the state of Sonora (IdEstado == 26).
+    """
+    root = Path().resolve().parent
+    output_dir = INTERIM_DATA_DIR / "sonora_siap"
+    INTERIM_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    session = requests.Session()
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Referer": "https://nube.agricultura.gob.mx/datosAbiertos/Agricola.php"
+    }
+    session.headers.update(headers)
+    
+    logger.info(f"-> Conectando al portal del SIAP para obtener enlaces...")
+    try:
+        main_page_url = "https://nube.agricultura.gob.mx/datosAbiertos/Agricola.php"
+        response_main = session.get(main_page_url, timeout=30)
+        
+        if response_main.status_code != 200:
+            logger.warning(f"[ERROR API] No se pudo acceder a la página principal del SIAP (HTTP {response_main.status_code})")
+            return
+            
+        soup = BeautifulSoup(response_main.text, "html.parser")
+        
+        for anio in range(start_year, end_year + 1):
+            logger.info(f"\n--- Procesando año: {anio} ---")
+            output_path = output_dir / f"siap_sonora_cierre_{anio}.csv"
+            
+            # Look for the link corresponding to the current year of the loop.
+            target_href = None
+            for a_tag in soup.find_all("a", href=True):
+                href = a_tag["href"]
+                if f"ANIO={anio}" in href.upper() or f"anio={anio}" in href:
+                    target_href = href
+                    break
+                    
+            if not target_href:
+                logger.warning(f"[AVISO] No se encontró un enlace de descarga para el año {anio} en el portal. Omitiendo...")
+                continue
+                
+            # Construct the full URL
+            if target_href.startswith("/"):
+                download_url = f"https://nube.agricultura.gob.mx{target_href}"
+            elif target_href.startswith("http"):
+                download_url = target_href
+            else:
+                download_url = f"https://nube.agricultura.gob.mx/datosAbiertos/{target_href}"
+                
+            logger.info(f"-> Descargando CSV para {anio}...")
+            response_csv = session.get(download_url, timeout=60)
+            
+            if response_csv.status_code != 200:
+                logger.warning(f"[ERROR API] Falló la descarga para el año {anio} (HTTP {response_csv.status_code})")
+                continue
+                
+            # Verify that it does not return HTML by mistake.
+            content_snippet = response_csv.content[:200].decode("latin1", errors="ignore")
+            if "<html" in content_snippet.lower() or "<doctype" in content_snippet.lower():
+                logger.warning(f"[ERROR API] El enlace para {anio} devolvió HTML en lugar de CSV.")
+                continue
+                
+            df = pd.read_csv(
+                io.StringIO(response_csv.content.decode("latin1")), 
+                sep=None, 
+                engine="python", 
+                on_bad_lines="skip"
+            )
+            
+            df.columns = [col.strip() for col in df.columns]
+            estado_col = next((col for col in df.columns if "estado" in col.lower()), None)
+            
+            if not estado_col:
+                logger.warning(f"[ERROR] No se encontró columna de estado para el año {anio}. Columnas: {list(df.columns)}")
+                continue
+                
+            # Filter by Sonora (StateId == 26 or text)
+            if df[estado_col].dtype in ["int64", "float64"]:
+                df_sonora = df[df[estado_col] == 26].copy()
+            else:
+                df_sonora = df[df[estado_col].astype(str).str.contains("Sonora", case=False, na=False)].copy()
+                
+            if df_sonora.empty:
+                logger.warning(f"[AVISO] El archivo de {anio} se descargó, pero no traía registros para Sonora.")
+            else:
+                df_sonora.to_csv(output_path, index=False, encoding="utf-8-sig")
+                logger.success(f"¡Éxito! Datos de Sonora ({anio}) guardados en: {output_path.name}")
+                logger.info(f"Total de registros: {len(df_sonora)}")
+                
+    except Exception as e:
+        logger.warning(f"[ERROR API] Ocurrió un error en el proceso por rangos: {e}")
 
 
 @app.command()
@@ -264,27 +372,23 @@ def data_ingestion_pipeline(start_year: int = 2019, end_year: int = 2024):
     """Ejecuta la descarga de agricultura y el procesamiento de sequía en un solo paso."""
     logger.info("=== Iniciando pipeline completo de datos ===")
 
-    logger.info("Paso 1/7: Descargando datos de agricultura...")
+    logger.info("Paso 1/6: Descargando datos de agricultura...")
     download_agriculture_data(start_year, end_year)
 
-    logger.info("Paso 2/7: Descargando y preprocesando datos de sequía...")
+    logger.info("Paso 2/6: Descargando y preprocesando datos de sequía...")
     download_drought_data(start_year, end_year)
 
-    logger.info("Paso 3/7: Descargando datos de lluvia...")
+    logger.info("Paso 3/6: Descargando datos de lluvia...")
     download_rain_data(start_year, end_year)
 
-    logger.info("Paso 4/7: Descargando datos de temperatura media...")
+    logger.info("Paso 4/6: Descargando datos de temperatura media...")
     download_temperature_data(start_year, end_year)
 
-    # 5. Ejecutar descarga de datos de recursos hídricos
-    logger.info("Paso 5/7: Descargando datos de recursos hídricos...")
+    logger.info("Paso 5/6: Descargando datos de recursos hídricos...")
     download_hidrico_data()
-
-    logger.info("Paso 6/7: Descargando y preprocesando datos de REPDA...")
-    download_repda_data()
-
-    logger.info("Paso 7/7: Descargando y preprocesando datos de acuíferos...")
-    download_data_aquifers()
+    
+    logger.info("Paso 6/6: Descargando datos de SIAP...")
+    download_siap_sonora(start_year, end_year)
 
     logger.success("¡Pipeline completo ejecutado con éxito!")
 

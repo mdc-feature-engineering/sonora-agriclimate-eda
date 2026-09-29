@@ -1,9 +1,9 @@
 """Pydantic schemas for the datasets documented in ``references``."""
 
-from datetime import datetime
+from datetime import datetime, date
 from math import isnan
 from numbers import Real
-from typing import Any, Literal, Optional
+from typing import Any, Optional
 import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -162,6 +162,7 @@ class RepdaAgricolaSchema(BaseModel):
 
 class AcuiferoSonoraSchema(BaseModel):
     """Schema for the Sonora aquifers dataset."""
+
     model_config = ConfigDict(extra="ignore")
 
     CLAVE: Optional[str] = None
@@ -223,122 +224,212 @@ class HidricoSonoraSchema(DatasetSchema):
         return value
 
 
-__all__ = [
-    "AgriculturaSonoraSchema",
-    "SequiaSonoraSchema",
-    "RepdaAgricolaSchema",
-    "AcuiferoSonoraSchema",
-    "HidricoSonoraSchema",
-]
+class SiapSonoraSchema(BaseModel):
+    model_config = ConfigDict(extra="ignore")
 
-from datetime import date, datetime
-from typing import Optional
-import pandas as pd
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+    # --- Identificadores / Claves (Enteros) ---
+    Anio: Optional[int] = Field(default=None, ge=1900, le=2100)
+    Idestado: Optional[int] = Field(default=None, ge=1)
+    Idddr: Optional[int] = Field(default=None, ge=0)
+    Idmunicipio: Optional[int] = Field(default=None, ge=1)
+    Idciclo: Optional[int] = Field(default=None, ge=1)
+    Idmodalidad: Optional[int] = Field(default=None, ge=1)
+    Idcultivo: Optional[int] = Field(default=None, ge=1)
+
+    # --- Campos Descriptivos (Texto) ---
+    Nomestado: Optional[str] = None
+    Nomddr: Optional[str] = None
+    Nommunicipio: Optional[str] = None
+    Nomciclo: Optional[str] = None
+    Nommodalidad: Optional[str] = None
+    Nomcultivo: Optional[str] = None
+
+    # --- Métricas Agrícolas (Flotantes) ---
+    Sembrada: Optional[float] = Field(default=None, ge=0.0)
+    Cosechada: Optional[float] = Field(default=None, ge=0.0)
+    Siniestrada: Optional[float] = Field(default=None, ge=0.0)
+    Produccion: Optional[float] = Field(default=None, ge=0.0)
+    Rendimiento: Optional[float] = Field(default=None, ge=0.0)
+    Pmr: Optional[float] = Field(default=None, ge=0.0)
+    Valorproduccion: Optional[float] = Field(default=None, ge=0.0)
+
+    # 1. Normalizar nulos o vacíos
+    @field_validator("*", mode="before")
+    @classmethod
+    def normalize_missing_values(cls, value):
+        if value is None or pd.isna(value) or str(value).strip() == "":
+            return None
+        return value
+
+    # 2. Limpieza de campos de texto
+    @field_validator(
+        "Nomestado",
+        "Nomddr",
+        "Nommunicipio",
+        "Nomciclo",
+        "Nommodalidad",
+        "Nomcultivo",
+        mode="before",
+    )
+    @classmethod
+    def convert_text_fields(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        return str(value).strip()
+
+    # 3. Conversión de campos enteros (soporta flotantes de pandas tipo 26.0)
+    @field_validator(
+        "Anio",
+        "Idestado",
+        "Idddr",
+        "Idmunicipio",
+        "Idciclo",
+        "Idmodalidad",
+        "Idcultivo",
+        mode="before",
+    )
+    @classmethod
+    def convert_numeric_fields(cls, value):
+        if value is None or pd.isna(value) or str(value).strip() == "":
+            return None
+        try:
+            return int(float(value))
+        except (ValueError, TypeError):
+            return None
+
+    # 4. Conversión de campos flotantes (reemplaza comas de miles ej. "1,500.50")
+    @field_validator(
+        "Sembrada",
+        "Cosechada",
+        "Siniestrada",
+        "Produccion",
+        "Rendimiento",
+        "Pmr",
+        "Valorproduccion",
+        mode="before",
+    )
+    @classmethod
+    def convert_float_fields(cls, value):
+        if value is None or pd.isna(value) or str(value).strip() == "":
+            return None
+        try:
+            clean_val = str(value).replace(",", "").strip()
+            return float(clean_val)
+        except (ValueError, TypeError):
+            return None
 
 
 # -------------------------------------------------------------------------
 # Esquema para Temperatura Media CONAGUA
 # -------------------------------------------------------------------------
 class TemperaturaEstacionSchema(BaseModel):
-  model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore")
 
-  lon: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
-  lat: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
-  clave: Optional[str] = None
-  edo: Optional[str] = None
-  est: Optional[str] = None
-  temp_promedio: Optional[float] = Field(default=None, ge=-50.0, le=65.0)
-  archivo_origen: Optional[str] = None
-  anio: Optional[int] = Field(default=None, ge=1900, le=2100)
-  mes: Optional[int] = Field(default=None, ge=1, le=12)
-  fecha: Optional[date] = None
+    lon: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
+    lat: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
+    clave: Optional[str] = None
+    edo: Optional[str] = None
+    est: Optional[str] = None
+    temp_promedio: Optional[float] = Field(default=None, ge=-50.0, le=65.0)
+    archivo_origen: Optional[str] = None
+    anio: Optional[int] = Field(default=None, ge=1900, le=2100)
+    mes: Optional[int] = Field(default=None, ge=1, le=12)
+    fecha: Optional[date] = None
 
-  @field_validator("*", mode="before")
-  @classmethod
-  def normalize_missing_and_sentinels(cls, value):
-    if value is None or pd.isna(value):
-      return None
-    if str(value).strip().lower() in ["", "nan", "none", "null"]:
-      return None
-    try:
-      val_num = float(value)
-      if val_num in [-99.9, -999.0, -99.0]:
-        return None
-    except (ValueError, TypeError):
-      pass
-    return value
+    @field_validator("*", mode="before")
+    @classmethod
+    def normalize_missing_and_sentinels(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        if str(value).strip().lower() in ["", "nan", "none", "null"]:
+            return None
+        try:
+            val_num = float(value)
+            if val_num in [-99.9, -999.0, -99.0]:
+                return None
+        except (ValueError, TypeError):
+            pass
+        return value
 
-  @field_validator(
-      "clave", "edo", "est", "archivo_origen", mode="before"
-  )
-  @classmethod
-  def convert_text_fields(cls, value):
-    if value is None or pd.isna(value):
-      return None
-    return str(value).strip()
+    @field_validator("clave", "edo", "est", "archivo_origen", mode="before")
+    @classmethod
+    def convert_text_fields(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        return str(value).strip()
 
-  @field_validator("fecha", mode="before")
-  @classmethod
-  def parse_date(cls, value):
-    if value is None or pd.isna(value):
-      return None
-    if isinstance(value, (pd.Timestamp, datetime)):
-      return value.date()
-    if isinstance(value, str):
-      return datetime.strptime(value.strip()[:10], "%Y-%m-%d").date()
-    return value
+    @field_validator("fecha", mode="before")
+    @classmethod
+    def parse_date(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        if isinstance(value, (pd.Timestamp, datetime)):
+            return value.date()
+        if isinstance(value, str):
+            return datetime.strptime(value.strip()[:10], "%Y-%m-%d").date()
+        return value
 
 
 # -------------------------------------------------------------------------
 # Esquema para Precipitación (Lluvia) CONAGUA
 # -------------------------------------------------------------------------
 class LluviaEstacionSchema(BaseModel):
-  model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore")
 
-  lon: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
-  lat: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
-  clave: Optional[str] = None
-  edo: Optional[str] = None
-  estacion: Optional[str] = None
-  precipitacion_mm: Optional[float] = Field(default=None, ge=0.0, le=3000.0)
-  periodo: Optional[str] = None
-  archivo_origen: Optional[str] = None
-  anio: Optional[int] = Field(default=None, ge=1900, le=2100)
-  mes: Optional[int] = Field(default=None, ge=1, le=12)
-  fecha: Optional[date] = None
+    lon: Optional[float] = Field(default=None, ge=-180.0, le=180.0)
+    lat: Optional[float] = Field(default=None, ge=-90.0, le=90.0)
+    clave: Optional[str] = None
+    edo: Optional[str] = None
+    estacion: Optional[str] = None
+    precipitacion_mm: Optional[float] = Field(default=None, ge=0.0, le=3000.0)
+    periodo: Optional[str] = None
+    archivo_origen: Optional[str] = None
+    anio: Optional[int] = Field(default=None, ge=1900, le=2100)
+    mes: Optional[int] = Field(default=None, ge=1, le=12)
+    fecha: Optional[date] = None
 
-  @field_validator("*", mode="before")
-  @classmethod
-  def normalize_missing_and_sentinels(cls, value):
-    if value is None or pd.isna(value):
-      return None
-    if str(value).strip().lower() in ["", "nan", "none", "null"]:
-      return None
-    try:
-      val_num = float(value)
-      if val_num in [-99.9, -999.0, -99.0]:
-        return None
-    except (ValueError, TypeError):
-      pass
-    return value
+    @field_validator("*", mode="before")
+    @classmethod
+    def normalize_missing_and_sentinels(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        if str(value).strip().lower() in ["", "nan", "none", "null"]:
+            return None
+        try:
+            val_num = float(value)
+            if val_num in [-99.9, -999.0, -99.0]:
+                return None
+        except (ValueError, TypeError):
+            pass
+        return value
 
-  @field_validator(
-      "clave", "edo", "estacion", "periodo", "archivo_origen", mode="before"
-  )
-  @classmethod
-  def clean_text_fields(cls, value):
-    if value is None or pd.isna(value):
-      return None
-    return str(value).strip()
+    @field_validator(
+        "clave", "edo", "estacion", "periodo", "archivo_origen", mode="before"
+    )
+    @classmethod
+    def clean_text_fields(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        return str(value).strip()
 
-  @field_validator("fecha", mode="before")
-  @classmethod
-  def parse_dates(cls, value):
-    if value is None or pd.isna(value):
-      return None
-    if isinstance(value, (pd.Timestamp, datetime)):
-      return value.date()
-    if isinstance(value, str):
-      return datetime.strptime(value.strip()[:10], "%Y-%m-%d").date()
-    return value
+    @field_validator("fecha", mode="before")
+    @classmethod
+    def parse_dates(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        if isinstance(value, (pd.Timestamp, datetime)):
+            return value.date()
+        if isinstance(value, str):
+            return datetime.strptime(value.strip()[:10], "%Y-%m-%d").date()
+        return value
+
+
+__all__ = [
+    "AgriculturaSonoraSchema",
+    "SequiaSonoraSchema",
+    "RepdaAgricolaSchema",
+    "AcuiferoSonoraSchema",
+    "HidricoSonoraSchema",
+    "SiapSonoraSchema",
+    "LluviaEstacionSchema",
+]
