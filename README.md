@@ -4,7 +4,10 @@
     <img src="https://img.shields.io/badge/CCDS-Project%20template-328F97?logo=cookiecutter" />
 </a>
 
-Exploratory data analysis of climate patterns and agricultural impact in Sonora
+> Análisis exploratorio de datos para evaluar el impacto del colapso ambiental y la sequía en los municipios agrícolas del estado de Sonora.
+
+## Descripción del Proyecto
+Este proyecto investiga cómo las crisis y el colapso ambiental (con un enfoque principal en las tendencias históricas de sequía y estrés hídrico) han afectado a los municipios agrícolas en el estado de Sonora. 
 
 ## Project Organization
 
@@ -23,13 +26,19 @@ Exploratory data analysis of climate patterns and agricultural impact in Sonora
 ├── models             <- Trained and serialized models, model predictions, or model summaries
 │
 ├── notebooks          <- Jupyter notebooks. Naming convention is a number (for ordering),
-│                         the creator's initials, and a short `-` delimited description, e.g.
-│                         `1.0-jqp-initial-data-exploration`.
+│   │                      the creator's initials, and a short `-` delimited description, e.g.
+│   │                      `1.0-jqp-initial-data-exploration`.
+│   ├── agriculture    <- Data from agriculture sources.
+│   ├── climate        <- Data from climate sources.
+│   └── water resources<- Data from water resources sources.
 │
 ├── pyproject.toml     <- Project configuration file with package metadata for 
 │                         sonora_agriclimate_eda and configuration for tools like black
 │
 ├── references         <- Data dictionaries, manuals, and all other explanatory materials.
+│   ├── agriculture    <- Data from agriculture sources.
+│   ├── climate        <- Data from climate sources.
+│   └── water resources<- Data from water resources sources.
 │
 ├── reports            <- Generated analysis as HTML, PDF, LaTeX, etc.
 │   └── figures        <- Generated graphics and figures to be used in reporting
@@ -48,6 +57,8 @@ Exploratory data analysis of climate patterns and agricultural impact in Sonora
     ├── dataset.py              <- Scripts to download or generate data
     │
     ├── features.py             <- Code to create features for modeling
+    │
+    ├── utils.py                <- Helper functions and reusable scripts
     │
     ├── modeling                
     │   ├── __init__.py 
