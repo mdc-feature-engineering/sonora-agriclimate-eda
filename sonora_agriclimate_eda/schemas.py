@@ -4,7 +4,7 @@ from datetime import datetime
 from math import isnan
 from numbers import Real
 from typing import Any, Literal, Optional
-
+import pandas as pd
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
@@ -69,44 +69,138 @@ class AgriculturaSonoraSchema(DatasetSchema):
         return str(value).strip()
 
 
-class ConaguaSequiaSchema(DatasetSchema):
+class SequiaSonoraSchema(DatasetSchema):
     """Schema for the tidy CONAGUA drought dataset for Sonora."""
+    model_config = ConfigDict(extra="ignore")
 
-    CVE_CONCATENADA: Optional[int] = None
-    CVE_ENT: Optional[int] = Field(default=None, ge=0)
-    CVE_MUN: Optional[int] = Field(default=None, ge=0)
-    fecha: Optional[datetime] = None
-    categoria_sequia: Optional[
-        Literal["Sin Sequía", "D0", "D1", "D2", "D3", "D4"]
-    ] = None
-    Anio: Optional[int] = Field(default=None, ge=1900, le=2200)
+    CVE_CONCATENADA: Optional[int] = Field(default=None, ge=0)
+    CVE_ENT: Optional[int] = Field(default=None, ge=1)
+    CVE_MUN: Optional[int] = Field(default=None, ge=1)
+    fecha: Optional[str] = None
+    categoria_sequia: Optional[str] = None
+    Anio: Optional[int] = Field(default=None, ge=1900, le=2100)
     severidad_num: Optional[int] = Field(default=None, ge=0, le=5)
 
+    @field_validator("*", mode="before")
+    @classmethod
+    def normalize_missing_values(cls, value):
+        # If it is None, an empty string, or pandas NaN, convert it to None
+        if value is None or pd.isna(value) or str(value).strip() == "":
+            return None
+        return value
 
-class InegiHidrografiaSchema(DatasetSchema):
-    """Schema for the INEGI hydrographic network layer for Sonora."""
+    @field_validator("fecha", "categoria_sequia", mode="before")
+    @classmethod
+    def convert_text_fields(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        return str(value).strip()
 
-    FID: Optional[int] = None
-    NOMBRE: Optional[str] = None
-    TIPO: Optional[str] = None
-    ORDEN: Optional[int] = Field(default=None, ge=0)
-    LONGITUD: Optional[float] = Field(default=None, ge=0)
-    CVE_ENT: Optional[str] = None
-    geometry: Optional[Any] = None
+    @field_validator(
+        "CVE_CONCATENADA", "CVE_ENT", "CVE_MUN", "Anio", "severidad_num", mode="before"
+    )
+    @classmethod
+    def convert_numeric_fields(cls, value):
+        if value is None or pd.isna(value) or str(value).strip() == "":
+            return None
+        try:
+            return int(float(value))  # float() in case it comes with .0 from pandas
+        except (ValueError, TypeError):
+            return None
 
 
-class RepdaConcesionSchema(DatasetSchema):
+class RepdaAgricolaSchema(BaseModel):
     """Schema for the REPDA concession metadata documented in the project."""
 
-    name: Optional[str] = None
-    type: Optional[str] = None
-    alias: Optional[str] = None
-    length: Optional[float] = Field(default=None, ge=0)
+    model_config = ConfigDict(extra="ignore")
+
+    FID: Optional[int] = Field(default=None, ge=0)
+    NUM_TITULO: Optional[str] = None
+    NUM_APROVE: Optional[str] = None
+    NOMBRE: Optional[str] = None
+    ESTADO: Optional[int] = Field(default=None, ge=1)
+    CLAVE_MUN: Optional[int] = Field(default=None, ge=1)
+    MUNICIPIO: Optional[str] = None
+    LOCALIDAD: Optional[str] = None
+    ACUIFERO: Optional[str] = None
+    CUENCA: Optional[str] = None
+    USO: Optional[str] = None
+    USO_SUB: Optional[str] = None
+    USO_LIMPIO: Optional[str] = None
+    VOL_CONS: Optional[float] = Field(default=None, ge=0)
+    FECHA_HASTA: Optional[str] = None  # Can be adjusted to datetime if preferred
+    LATITUD: Optional[float] = None
+    LONGITUDE: Optional[float] = None
+
+    @field_validator("*")
+    @classmethod
+    def normalize_missing_values(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        return value
+
+    @field_validator(
+        "NUM_TITULO",
+        "NUM_APROVE",
+        "NOMBRE",
+        "MUNICIPIO",
+        "LOCALIDAD",
+        "ACUIFERO",
+        "CUENCA",
+        "USO",
+        "USO_SUB",
+        "USO_LIMPIO",
+        "FECHA_HASTA",
+        mode="before",
+    )
+    @classmethod
+    def convert_text_fields(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        return str(value).strip()
+
+
+class AcuiferoSonoraSchema(BaseModel):
+    """Schema for the Sonora aquifers dataset."""
+    model_config = ConfigDict(extra="ignore")
+
+    CLAVE: Optional[str] = None
+    ACUIFERO: Optional[str] = None
+    R: Optional[float] = None
+    DNC: Optional[float] = None
+    VEAS: Optional[float] = None
+    DMA: Optional[float] = None
+    DOCUMENTO: Optional[str] = None
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def normalize_missing_values(cls, value):
+        # If it is None, an empty string, or pandas NaN, convert it to None
+        if value is None or pd.isna(value) or str(value).strip() == "":
+            return None
+        return value
+
+    @field_validator("CLAVE", "ACUIFERO", "DOCUMENTO", mode="before")
+    @classmethod
+    def convert_text_fields(cls, value):
+        if value is None or pd.isna(value):
+            return None
+        return str(value).strip()
+
+    @field_validator("R", "DNC", "VEAS", "DMA", mode="before")
+    @classmethod
+    def convert_numeric_fields(cls, value):
+        if value is None or pd.isna(value) or str(value).strip() == "":
+            return None
+        try:
+            return float(value)
+        except (ValueError, TypeError):
+            return None
 
 
 __all__ = [
     "AgriculturaSonoraSchema",
-    "ConaguaSequiaSchema",
-    "InegiHidrografiaSchema",
-    "RepdaConcesionSchema",
+    "SequiaSonoraSchema",
+    "RepdaAgricolaSchema",
+    "AcuiferoSonoraSchema",
 ]
