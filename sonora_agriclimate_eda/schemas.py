@@ -198,9 +198,35 @@ class AcuiferoSonoraSchema(BaseModel):
             return None
 
 
+class HidricoSonoraSchema(DatasetSchema):
+    """Schema for the Sonora water storage dataset (dams, 2020-actualidad)."""
+
+    model_config = ConfigDict(
+        extra="ignore", str_strip_whitespace=True, populate_by_name=True
+    )
+
+    Clave: Optional[str] = None
+    Fecha: Optional[datetime] = None
+    almacenamiento_hm3: Optional[float] = Field(
+        default=None, ge=0, alias="Almacenamiento(hm\u00b3)"
+    )
+
+    @field_validator("Fecha", mode="before")
+    @classmethod
+    def parse_fecha(cls, value: Any) -> Any:
+        if value is None or (isinstance(value, Real) and isnan(value)):
+            return None
+        if isinstance(value, str):
+            import pandas as pd
+
+            return pd.to_datetime(value, dayfirst=True, errors="coerce")
+        return value
+
+
 __all__ = [
     "AgriculturaSonoraSchema",
     "SequiaSonoraSchema",
     "RepdaAgricolaSchema",
     "AcuiferoSonoraSchema",
+    "HidricoSonoraSchema",
 ]

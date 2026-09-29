@@ -17,6 +17,7 @@ from config import (
     CONAGUA_BASE_URL,
     CONAGUA_DROUGHT_URL,
     REPDA_URL_QUERY,
+    HIDRICO_SONORA_URL,
 )
 
 urllib3.disable_warnings(
@@ -418,26 +419,49 @@ def download_data_aquifers():
 
 
 @app.command()
+def download_hidrico_data():
+    """Descarga el archivo de recursos hídricos (presas) de Sonora."""
+    RAW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    dest_file = RAW_DATA_DIR / "hidrico_sonora_2020-actualidad2024.xlsx"
+
+    try:
+        response = requests.get(HIDRICO_SONORA_URL, timeout=30)
+        response.raise_for_status()
+
+        with open(dest_file, "wb") as f:
+            f.write(response.content)
+
+        logger.success(f"Archivo descargado con éxito: {dest_file}")
+    except requests.exceptions.RequestException as e:
+        logger.warning(f"Failed to download hidrico data: {e}")
+
+
+@app.command()
 def data_ingestion_pipeline(start_year: int = 2019, end_year: int = 2024):
     """Ejecuta la descarga de agricultura y el procesamiento de sequía en un solo paso."""
     logger.info("=== Iniciando pipeline completo de datos ===")
 
-    logger.info("Paso 1/6: Descargando datos de agricultura...")
+    logger.info("Paso 1/7: Descargando datos de agricultura...")
     download_agriculture_data(start_year, end_year)
 
-    logger.info("Paso 2/6: Descargando y preprocesando datos de sequía...")
+    logger.info("Paso 2/7: Descargando y preprocesando datos de sequía...")
     download_drought_data(start_year, end_year)
 
-    logger.info("Paso 3/6: Descargando datos de lluvia...")
+    logger.info("Paso 3/7: Descargando datos de lluvia...")
     download_rain_data(start_year, end_year)
 
-    logger.info("Paso 4/6: Descargando datos de temperatura media...")
+    logger.info("Paso 4/7: Descargando datos de temperatura media...")
     download_temperature_data(start_year, end_year)
 
-    logger.info("Paso 5/6: Descargando y preprocesando datos de REPDA...")
+    # 5. Ejecutar descarga de datos de recursos hídricos
+    logger.info("Paso 5/7: Descargando datos de recursos hídricos...")
+    download_hidrico_data()
+
+    logger.info("Paso 6/7: Descargando y preprocesando datos de REPDA...")
     download_repda_data()
 
-    logger.info("Paso 6/6: Descargando y preprocesando datos de acuíferos...")
+    logger.info("Paso 7/7: Descargando y preprocesando datos de acuíferos...")
     download_data_aquifers()
 
     logger.success("¡Pipeline completo ejecutado con éxito!")
